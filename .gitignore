@@ -6,3 +6,4 @@ testing/conformance/traces
 .idea/
 .vscode/
 lcov.info
+node_modules/

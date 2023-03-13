@@ -8,6 +8,8 @@ library Test {
     using ErrLib for *;
 
     struct TestRunner {
+        bool hasSetup;
+        TestFn setupFn;
         TestFn[] tests;
     }
 
@@ -23,6 +25,10 @@ library Test {
         PAYABLE
     }
 
+    // Solc aborts with specific values for certain operations.
+    // These can be caught using try { ... } catch Panic(uint err)
+    uint constant ARITHMETIC_OVERFLOW_PANIC = 17;
+
     // Storing TestRunner at slot[some-hash] means test contracts
     // can implement whatever storage footprint they want and there
     // won't be any overwriting.
@@ -37,6 +43,9 @@ library Test {
         results = new string[](tr.tests.length + 1);
         uint passCount;
 
+        bool hasSetup = tr.hasSetup;
+        TestFn memory setupFn = tr.setupFn;
+
         // Iterate over added tests and run each. Tests that revert should
         // return an error message. These are tracked in the results array, 
         // which we return from this method.
@@ -44,6 +53,25 @@ library Test {
         uint failCount = 1;
         for (uint i = 0; i < tr.tests.length; i++) {
             TestFn storage t = tr.tests[i];
+
+            if (hasSetup) {
+                function() external setFn = setupFn.test;
+                try setFn() {
+                    // do nothing - now we need to run the test function
+                } catch Error(string memory reason) {
+                    results[failCount] = getFailureString(i, setupFn.name, reason);
+                    failCount++;
+                    continue;
+                } catch Panic(uint err) {
+                    results[failCount] = getPanicString(i, setupFn.name, err);
+                    failCount++;
+                    continue;
+                } catch {
+                    results[failCount] = getUnknownErrString(i, setupFn.name);
+                    failCount++;
+                    continue;
+                }
+            }
 
             // Run test. If target is payable or view, we
             // cast the test function.
@@ -95,6 +123,20 @@ library Test {
 
         // Manually update the length of results
         assembly { mstore(results, failCount) }
+    }
+
+    // Add a function to the runner that will be run before each test
+    function setup(TestRunner storage tr, function() external fn) internal returns (TestRunner storage) {
+        if (tr.hasSetup) 
+            fail("TestRunner: cannot add 2 setup functions!");
+        
+        TestFn memory setupFn = named(fn, "test__Setup");
+        setupFn.mutability = Mut.MUTABLE;
+
+        tr.hasSetup = true;
+        tr.setupFn = setupFn;
+
+        return tr;
     }
 
     /**
@@ -227,6 +269,18 @@ library Test {
         revert(ASSERT_FAIL.concat(str));
     }
 
+    // Useful for printin values without additional failure text
+    // Usage: Test.print("some value: ").value(a);
+    // this fails the test and prints the message + value
+    function print(string memory str) internal pure returns (string memory) {
+        return str;
+    }
+
+    // Test.todo() - marks test as not implemented
+    function todo() internal pure {
+        revert("TODO");
+    }
+
     /**
      * address assertions:
      * - eq
@@ -250,6 +304,10 @@ library Test {
         if (a == address(0)) return;
 
         revert(str.concat(IS_ZERO).concat(a));
+    }
+
+    function value(string memory str, address a) internal pure {
+        revert(str.concat(a));
     }
 
     /**
@@ -305,6 +363,10 @@ library Test {
         revert(str.concat(EXPECTED).concat(a).concat(SEP_LTE).concat(b));
     }
 
+    function value(string memory str, uint a) internal pure {
+        revert(str.concat(a));
+    }
+
     /**
      * bytes32 assertions:
      * - eq
@@ -330,6 +392,10 @@ library Test {
         revert(str.concat(IS_ZERO).concat(a));
     }
 
+    function value(string memory str, bytes32 a) internal pure {
+        revert(str.concat(a));
+    }
+
     /**
      * bool assertions
      * - success
@@ -346,5 +412,13 @@ library Test {
         if (!cond) return;
 
         revert(str.concat(EXPECTED_FALSE));
+    }
+
+    function value(string memory str, bool a) internal pure {
+        if (a) {
+            revert(str.concat(string("true")));
+        } else {
+            revert(str.concat(string("false")));
+        }
     }
 }

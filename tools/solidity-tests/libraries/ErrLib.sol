@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "./FilUtils.sol";
-
 library ErrLib {
 
     function expect(bool condition, string memory err) internal pure {

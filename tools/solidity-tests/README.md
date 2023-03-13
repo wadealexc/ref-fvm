@@ -5,11 +5,14 @@ This directory includes a test suite, developed by Alex Wade, using fvm-bench.
 
 ### Install
 
+* jq: `sudo apt install jq`
 * solc-js: `npm i solc`
 * foundry-rs: https://book.getfoundry.sh/getting-started/installation
 
 ### Run Tests
 
+* Build ref-fvm in release mode: `cargo build --profile release`
+* Get an actors bundle, and set its path as $BUNDLE
 * `chmod a+x ./script.sh`
 
 ... then `./script.sh` will run tests!

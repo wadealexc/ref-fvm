@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# echo $BUNDLE
+
+source ".env"
+echo $BUNDLE
+
 # BUNDLE varilabl emust be set
 if [ -z "$BUNDLE" ]; then
     echo "builtin-actors bundle not specified; please set the BUNDLE variable"
@@ -29,9 +34,9 @@ echo "Compiling..."
 # If we passed in part of a file name, we only compile that file
 # ... and only the files we compile get run as tests.
 if [ -z "$1" ]; then
-  find ./tests -name "*.sol" -exec sh -c "echo Compiling {}; solcjs --optimize --bin --abi {} --output-dir ${output_dir}" \;
+  find ./fevmate-tests -name "*.sol" -exec sh -c "echo Compiling {}; solcjs --optimize --bin --abi {} --include-path node_modules/ --base-path . --output-dir ${output_dir}" \;
 else
-  find ./tests -name "*$1*.sol" -exec sh -c "echo Compiling {}; solcjs --optimize --bin --abi {} --output-dir ${output_dir}" \;
+  find ./fevmate-tests -name "*$1*.sol" -exec sh -c "echo Compiling {}; solcjs --optimize --bin --abi {} --include-path node_modules/ --base-path . --output-dir ${output_dir}" \;
 fi
 
 echo "Testing contracts..."
@@ -41,6 +46,18 @@ echo " "
 for bin_file in "$output_dir"/*.bin; do
   # Skip calling any libraries we've added to the libraries dir
   if [[ $bin_file == "$output_dir/libraries_"* ]]; then
+    # echo "Skipping library: $bin_file"
+    continue
+  fi
+
+  # Skip calling anything in fevmate-mocks:
+  if [[ $bin_file == "$output_dir/fevmate-mocks_"* ]]; then
+    # echo "Skipping library: $bin_file"
+    continue
+  fi
+
+  # Skip calling anything from fevmate package
+  if [[ $bin_file == "$output_dir/fevmate_contracts"* ]]; then
     # echo "Skipping library: $bin_file"
     continue
   fi
@@ -77,6 +94,7 @@ for bin_file in "$output_dir"/*.bin; do
   # Note: right now, you need to manually change the return params
   #       here if you change testEntry() to return something new
   decoded=$(cast --abi-decode "run()(string[])" "0x$returndata")
+  # echo $decoded
   echo "Test results for $bin_file:"
   echo "=========="
   echo "$gas_used"
